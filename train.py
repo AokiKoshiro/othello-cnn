@@ -4,35 +4,45 @@ import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
 
+from config import hyperparameters
 
-class Transform:
+
+class BoardTransform:
     def __init__(self):
         pass
 
     def __call__(self, sample, num):
-        board = sample[:-1]
-        move = sample[-1]
-        board = board.reshape(2, 8, 8).astype(np.float32)
-        move = move.reshape(8, 8).astype(np.float32)
-        board = torch.from_numpy(board)
-        move = torch.from_numpy(move)
-
-        # rotate 0, 90, 180, 270
-        rotate = num % 4
-        board = torch.rot90(board, rotate, (1, 2))
-        move = torch.rot90(move, rotate, (0, 1))
-
-        # transpose
-        if num >= 4:
-            board = torch.transpose(board, 1, 2)
-            move = torch.transpose(move, 0, 1)
-
-        move = move.reshape(64)
+        board, move = self._reshape(sample)
+        board, move = self._apply_transformations(board, move, num)
         return board, move
 
+    def _reshape(self, sample):
+        board = sample[:-1].reshape(2, 8, 8).astype(np.float32)
+        move = sample[-1].reshape(8, 8).astype(np.float32)
+        return torch.from_numpy(board), torch.from_numpy(move)
 
-class Dataset(torch.utils.data.Dataset):
-    def __init__(self, dataset, multiple=8, transform=Transform()):
+    def _apply_transformations(self, board, move, num):
+        board, move = self._rotate(board, move, num)
+        if num >= 4:
+            board, move = self._transpose(board, move)
+        return board, move.reshape(64)
+
+    def _rotate(self, board, move, num):
+        rotate = num % 4
+        return (
+            torch.rot90(board, rotate, (1, 2)),
+            torch.rot90(move, rotate, (0, 1)),
+        )
+
+    def _transpose(self, board, move):
+        return (
+            torch.transpose(board, 1, 2),
+            torch.transpose(move, 0, 1),
+        )
+
+
+class OthelloDataset(torch.utils.data.Dataset):
+    def __init__(self, dataset, multiple=8, transform=BoardTransform()):
         self.multiple = multiple
         self.dataset = dataset
         self.transform = transform
@@ -43,14 +53,12 @@ class Dataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         sample = self.dataset[idx // self.multiple]
         num = idx % self.multiple
-        if self.transform:
-            return self.transform(sample, num)
-        return sample
+        return self.transform(sample, num) if self.transform else sample
 
 
-class SEBlock(nn.Module):
+class SqueezeExcitationBlock(nn.Module):
     def __init__(self, in_channels, reduction=16):
-        super(SEBlock, self).__init__()
+        super(SqueezeExcitationBlock, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.linear1 = nn.Linear(in_channels, in_channels // reduction)
         self.relu = nn.ReLU()
@@ -59,21 +67,22 @@ class SEBlock(nn.Module):
 
     def forward(self, x):
         b, c, _, _ = x.size()
-        y = self.avg_pool(x).view(b, c)
-        y = self.linear1(y)
-        y = self.relu(y)
-        y = self.linear2(y)
-        y = self.sigmoid(y).view(b, c, 1, 1)
+        y = self._calculate_squeeze(x, b, c)
         return x * y
 
+    def _calculate_squeeze(self, x, b, c):
+        y = self.avg_pool(x).view(b, c)
+        y = self.relu(self.linear1(y))
+        return self.sigmoid(self.linear2(y)).view(b, c, 1, 1)
 
-class ConvBlock(nn.Module):
+
+class ConvolutionBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding):
-        super(ConvBlock, self).__init__()
+        super(ConvolutionBlock, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
         self.bn = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU()
-        self.se = SEBlock(out_channels)
+        self.se = SqueezeExcitationBlock(out_channels)
 
     def forward(self, x):
         x = self.conv(x)
@@ -86,17 +95,19 @@ class ConvBlock(nn.Module):
 class Model(nn.Module):
     def __init__(self, hidden_size, num_block, dropout):
         super(Model, self).__init__()
-        self.convs = nn.ModuleList()
-        for i in range(num_block):
-            if i == 0:
-                self.convs.append(ConvBlock(2, hidden_size, 3, 1, 1))
-            else:
-                self.convs.append(ConvBlock(hidden_size, hidden_size, 3, 1, 1))
+        self.convs = self._create_convs(hidden_size, num_block)
         self.flatten = nn.Flatten()
         self.bn = nn.BatchNorm1d(hidden_size * 8 * 8)
         self.dropout = nn.Dropout(dropout)
         self.fc = nn.Linear(hidden_size * 8 * 8, 64)
         self.relu = nn.ReLU()
+
+    def _create_convs(self, hidden_size, num_block):
+        convs = nn.ModuleList()
+        for i in range(num_block):
+            in_channels = 2 if i == 0 else hidden_size
+            convs.append(ConvolutionBlock(in_channels, hidden_size, 3, 1, 1))
+        return convs
 
     def forward(self, x):
         for conv in self.convs:
@@ -109,91 +120,115 @@ class Model(nn.Module):
         return x
 
 
-# hyperparameters
-batch_size = 2**10
-hidden_size = 128
-num_block = 5
-dropout = 0.6
-learning_rate = 5e-4
-scheduler_step_size = 1
-scheduler_gamma = 1
-num_epochs = 20
-log_interval = 1
+def train(model, device, train_loader, criterion, optimizer, epoch, log_batch_interval):
+    model.train()
+    train_loss = 0
+    for batch_idx, (board, move) in enumerate(train_loader):
+        board, move = board.to(device), move.to(device)
+        optimizer.zero_grad()
+        output = model(board)
+        loss = criterion(output, torch.argmax(move, dim=1))
+        loss.backward()
+        optimizer.step()
 
-if __name__ == "__main__":
+        train_loss += loss.item()
+
+        if batch_idx % log_batch_interval == 0:
+            print(f"Train Epoch: {epoch} | Progress: {batch_idx * len(board)}/{len(train_loader.dataset)} "
+                  f"({100. * batch_idx / len(train_loader):.0f}%) | Loss: {loss.item():.6f}")
+
+    train_loss /= len(train_loader)
+    print(f"Train set: Average loss: {train_loss:.6f}")
+
+    return train_loss
+
+
+def validate(model, device, val_loader, criterion):
+    model.eval()
+    val_loss = 0
+    correct = 0
+    with torch.no_grad():
+        for board, move in val_loader:
+            board, move = board.to(device), move.to(device)
+            output = model(board)
+            val_loss += criterion(output, torch.argmax(move, dim=1)).item()
+            pred = output.argmax(dim=1, keepdim=True)
+            correct += pred.eq(torch.argmax(move, dim=1).view_as(pred)).sum().item()
+
+    val_loss /= len(val_loader.dataset)
+    val_accuracy = correct / len(val_loader.dataset)
+    print(f"Validation set: Average loss: {val_loss:.6f}, Accuracy: {correct}/{len(val_loader.dataset)} "
+          f"({100. * val_accuracy:.0f}%)")
+
+    return val_loss, val_accuracy
+
+
+
+def main():
+    # hyperparameters
+    batch_size = hyperparameters["batch_size"]
+    hidden_size = hyperparameters["hidden_size"]
+    num_block = hyperparameters["num_block"]
+    dropout = hyperparameters["dropout"]
+    learning_rate = hyperparameters["learning_rate"]
+    scheduler_step_size = hyperparameters["scheduler_step_size"]
+    scheduler_gamma = hyperparameters["scheduler_gamma"]
+    num_epochs = hyperparameters["num_epochs"]
+    log_interval = hyperparameters["log_interval"]
+    log_batch_interval = hyperparameters["log_batch_interval"]
+
     # dataset
-    np_train_dataset = np.load("./train_wthor_winner_dataset.npy")
-    train_dataset = Dataset(np_train_dataset, multiple=8, transform=Transform())
+    np_train_dataset = np.load("./data/train_winner_othello_dataset.npy")
+    train_dataset = OthelloDataset(np_train_dataset, multiple=8, transform=BoardTransform())
 
-    np_val_dataset = np.load("./val_wthor_winner_dataset.npy")
-    val_dataset = Dataset(np_val_dataset, multiple=8, transform=Transform())
+    np_val_dataset = np.load("./data/val_winner_othello_dataset.npy")
+    val_dataset = OthelloDataset(np_val_dataset, multiple=8, transform=BoardTransform())
 
     # dataloader
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-    # model, criterion, optimizer, scheduler
-    model = Model(hidden_size, num_block, dropout)
+    # Set up device, model, criterion, optimizer, and scheduler
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = Model(hidden_size, num_block, dropout).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=scheduler_step_size, gamma=scheduler_gamma)
 
-    # train and calc loss & accuracy for 10 epochs
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
+    # Train and validate the model for num_epochs
     train_loss_list = []
     val_loss_list = []
     val_accuracy_list = []
-    for epoch in range(num_epochs):
-        # train
-        model.train()
-        for batch, (board, move) in enumerate(train_loader):
-            board = board.to(device)
-            move = move.to(device)
-            optimizer.zero_grad()
-            outputs = model(board)
-            loss = criterion(outputs, torch.argmax(move, dim=1))
-            loss.backward()
-            optimizer.step()
-        train_loss = loss.item()
-        train_loss_list.append(train_loss)
-        scheduler.step()
+    for epoch in range(1, num_epochs + 1):
+        train_loss = train(model, device, train_loader, criterion, optimizer, epoch, log_batch_interval)
+        val_loss, val_accuracy = validate(model, device, val_loader, criterion)
 
-        # val
-        model.eval()
-        val_loss = 0
-        correct = 0
-        total = 0
-        with torch.no_grad():
-            for batch, (board, move) in enumerate(val_loader):
-                board = board.to(device)
-                move = move.to(device)
-                outputs = model(board)
-                loss = criterion(outputs, torch.argmax(move, dim=1))
-                val_loss += loss.item()
-                _, predicted = torch.max(outputs.data, 1)
-                total += move.size(0)
-                correct += (predicted == torch.argmax(move, dim=1)).sum().item()
-        val_loss /= batch + 1
-        val_accuracy = correct / total
+        train_loss_list.append(train_loss)
         val_loss_list.append(val_loss)
         val_accuracy_list.append(val_accuracy)
-        if (epoch + 1) % log_interval == 0:
-            print(f"-----Epoch {epoch + 1}/{num_epochs} -----")
-            print(f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Accuracy: {val_accuracy:.4f}")
-            print()
 
-    # plot 2 graphs (loss & accuracy)
+        scheduler.step()
+
+        if epoch % log_interval == 0:
+            print(f"Epoch: {epoch} | Train Loss: {train_loss:.6f} | Validation Loss: {val_loss:.6f} | "
+                f"Validation Accuracy: {100. * val_accuracy:.2f}%\n")
+
+
+    # Plot loss and accuracy curves
     fig, ax = plt.subplots(1, 2, figsize=(15, 5))
     ax[0].plot(train_loss_list, label="train_loss")
     ax[0].plot(val_loss_list, label="val_loss")
-    ax[0].set_xlabel("epoch")
-    ax[0].set_ylabel("loss")
+    ax[0].set_xlabel("Epoch")
+    ax[0].set_ylabel("Loss")
     ax[0].legend()
     ax[1].plot(val_accuracy_list)
-    ax[1].set_xlabel("epoch")
-    ax[1].set_ylabel("accuracy")
+    ax[1].set_xlabel("Epoch")
+    ax[1].set_ylabel("Accuracy (%)")
     plt.show()
 
-    # save model
-    torch.save(model.state_dict(), "./model.pth")
+    # Save the trained model
+    torch.save(model.state_dict(), "./weights/model.pth")
+
+
+if __name__ == "__main__":
+    main()

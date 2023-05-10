@@ -1,10 +1,15 @@
 import numpy as np
 import torch
 
-from train import Model, dropout, hidden_size, num_block
+from config import hyperparameters
+from train import Model
 from utils import get_legal_moves, init_board, reverse_disks
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+hidden_size = hyperparameters['hidden_size']
+num_block = hyperparameters['num_block']
+dropout = hyperparameters['dropout']
 
 model = Model(hidden_size, num_block, dropout)
 model.load_state_dict(torch.load("./weights/model.pth", map_location=device))
