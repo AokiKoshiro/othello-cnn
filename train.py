@@ -134,11 +134,12 @@ def train(model, device, train_loader, criterion, optimizer, epoch, log_batch_in
         train_loss += loss.item()
 
         if batch_idx % log_batch_interval == 0:
-            print(f"Train Epoch: {epoch} | Progress: {batch_idx * len(board)}/{len(train_loader.dataset)} "
-                  f"({100. * batch_idx / len(train_loader):.0f}%) | Loss: {loss.item():.6f}")
+            print(
+                f"Train Epoch: {epoch} | Progress: {batch_idx * len(board)}/{len(train_loader.dataset)} "
+                f"({100. * batch_idx / len(train_loader):.0f}%) | Loss: {loss.item():.6f}"
+            )
 
     train_loss /= len(train_loader)
-    print(f"Train set: Average loss: {train_loss:.6f}")
 
     return train_loss
 
@@ -155,13 +156,10 @@ def validate(model, device, val_loader, criterion):
             pred = output.argmax(dim=1, keepdim=True)
             correct += pred.eq(torch.argmax(move, dim=1).view_as(pred)).sum().item()
 
-    val_loss /= len(val_loader.dataset)
+    val_loss /= len(val_loader)
     val_accuracy = correct / len(val_loader.dataset)
-    print(f"Validation set: Average loss: {val_loss:.6f}, Accuracy: {correct}/{len(val_loader.dataset)} "
-          f"({100. * val_accuracy:.0f}%)")
 
     return val_loss, val_accuracy
-
 
 
 def main():
@@ -210,9 +208,16 @@ def main():
         scheduler.step()
 
         if epoch % log_interval == 0:
-            print(f"Epoch: {epoch} | Train Loss: {train_loss:.6f} | Validation Loss: {val_loss:.6f} | "
-                f"Validation Accuracy: {100. * val_accuracy:.2f}%\n")
+            print(
+                f"Epoch: {epoch} | Train Loss: {train_loss:.6f} | Validation Loss: {val_loss:.6f} | "
+                f"Validation Accuracy: {100. * val_accuracy:.2f}%\n"
+            )
 
+        # Save the trained model for each epoch
+        if epoch == num_epochs:
+            torch.save(model.state_dict(), "./weights/model.pth")
+        else:
+            torch.save(model.state_dict(), f"./weights/model_{epoch}.pth")
 
     # Plot loss and accuracy curves
     fig, ax = plt.subplots(1, 2, figsize=(15, 5))
@@ -225,9 +230,6 @@ def main():
     ax[1].set_xlabel("Epoch")
     ax[1].set_ylabel("Accuracy (%)")
     plt.show()
-
-    # Save the trained model
-    torch.save(model.state_dict(), "./weights/model.pth")
 
 
 if __name__ == "__main__":
