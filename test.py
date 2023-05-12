@@ -41,7 +41,7 @@ def main():
 
     # Set up device, model, and criterion
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = Model(hidden_size, num_block, dropout)
+    model = Model(hidden_size, num_block, dropout).to(device)
     model.load_state_dict(torch.load("./weights/model.pth", map_location=device))
     criterion = nn.CrossEntropyLoss()
 

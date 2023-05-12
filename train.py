@@ -218,13 +218,13 @@ def main():
 
         # Plot loss and accuracy curves after each epoch
         fig, ax = plt.subplots(1, 2, figsize=(15, 5))
-        ax[0].plot(range(1, num_epochs + 1), train_loss_list, label="train_loss")
-        ax[0].plot(range(1, num_epochs + 1), val_loss_list, label="val_loss")
+        ax[0].plot(range(1, epoch + 1), train_loss_list, label="train_loss")
+        ax[0].plot(range(1, epoch + 1), val_loss_list, label="val_loss")
         ax[0].set_xlabel("Epoch")
         ax[0].set_ylabel("Loss")
         ax[0].set_xlim([1, num_epochs])
         ax[0].legend()
-        ax[1].plot(range(1, num_epochs + 1), val_accuracy_list)
+        ax[1].plot(range(1, epoch + 1), val_accuracy_list)
         ax[1].set_xlabel("Epoch")
         ax[1].set_ylabel("Accuracy (%)")
         ax[1].set_xlim([1, num_epochs])
