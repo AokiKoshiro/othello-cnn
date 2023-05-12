@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from utils import get_winner_index, moves2boards, moves2matrices, transcript2moves
+from utils import get_winner_indices, moves2boards, moves2matrices, transcript2moves
 
 def prepare_othello_dataset():
     df_data = pd.read_csv(f"./data/original_data/othello_dataset.csv")
@@ -10,7 +10,7 @@ def prepare_othello_dataset():
     df_winner = df_data["winner"]
     df_move = df_transcript.apply(transcript2moves)
     df_move_and_winner = pd.concat([df_move, df_winner], axis=1)
-    df_winner_index = df_move_and_winner.apply(lambda x: get_winner_index(x[0], x[1]), axis=1)
+    df_winner_index = df_move_and_winner.apply(lambda x: get_winner_indices(x[0], x[1]), axis=1)
     df_move_matrix = df_move.apply(moves2matrices)
     df_board = df_move.apply(moves2boards).apply(lambda x: x[:-1])
     np_winner_move_matrix = create_winner_move_matrix(df_move_matrix, df_winner_index)

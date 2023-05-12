@@ -1,83 +1,73 @@
+import numpy as np
 import itertools
 
-import numpy as np
+DIRECTIONS = list(itertools.product([-1, 0, 1], repeat=2))
+DIRECTIONS.remove((0, 0))
 
 
 def init_board():
     """
-    盤を初期化する。
+    Initialize the game board.
     """
     black_board = np.zeros((8, 8), dtype=np.int8)
     white_board = np.zeros((8, 8), dtype=np.int8)
-    black_board[3, 4] = 1
-    black_board[4, 3] = 1
-    white_board[3, 3] = 1
-    white_board[4, 4] = 1
+    black_board[3, 4] = black_board[4, 3] = 1
+    white_board[3, 3] = white_board[4, 4] = 1
     return black_board, white_board
 
 
-def is_legal_direction(board, move, direction):
+def is_legal_direction(my_board, enemy_board, move, direction):
     """
-    指定した方向に同じ色で挟めるかどうか判定する。
+    Check if it's possible to sandwich the opponent's discs in the specified direction.
     """
-    my_board, enemy_board = board
     for i in range(1, 8):
-        next_coord = tuple(np.array(move) + i * np.array(direction))
-        if all(0 <= c <= 7 for c in next_coord):
-            if enemy_board[next_coord] == 1:
-                continue
-            elif my_board[next_coord] == 1:
-                return i > 1
+        next_coord = tuple(np.add(move, i * np.array(direction)))
+        if not all(0 <= c <= 7 for c in next_coord):
             return False
-        return False
+        if enemy_board[next_coord] == 1:
+            continue
+        elif my_board[next_coord] == 1:
+            return i > 1
+        else:
+            return False
     return False
 
 
 def get_legal_directions(board, move):
     """
-    指定した指し手で同じ色に挟まれた石をひっくり返せる方向を返す。
+    Return the directions in which it is possible to flip the opponent's discs.
     """
-    legal_directions = []
-    for direction in itertools.product([-1, 0, 1], [-1, 0, 1]):
-        if direction == (0, 0):
-            continue
-        if is_legal_direction(board, move, direction):
-            legal_directions.append(direction)
-    return legal_directions
+    my_board, enemy_board = board
+    return [direction for direction in DIRECTIONS if is_legal_direction(my_board, enemy_board, move, direction)]
 
 
 def is_legal_move(board, move):
     """
-    指定した指し手で同じ色に挟まれた石をひっくり返せるかどうか判定する。
+    Check if the specified move can flip the opponent's discs.
     """
-    for direction in itertools.product([-1, 0, 1], [-1, 0, 1]):
-        if direction == (0, 0):
-            continue
-        if is_legal_direction(board, move, direction):
-            return True
-    return False
+    return any(is_legal_direction(board[0], board[1], move, direction) for direction in DIRECTIONS)
 
 
 def get_legal_moves(board):
     """
-    指し手の候補を返す。
+    Return possible moves.
     """
     legal_moves = []
-    for move in itertools.product(range(8), range(8)):
-        if is_legal_move(board, move) and board[0][move] == 0 and board[1][move] == 0:
+    for move in itertools.product(range(8), repeat=2):
+        if is_legal_move(board, move) and all(b[move] == 0 for b in board):
             legal_moves.append(move)
     return legal_moves
 
 
 def reverse_disks(board, move):
     """
-    指定した指し手で同じ色に挟まれた石をひっくり返す。
+    Flip the opponent's discs sandwiched by the specified move.
     """
     my_board, enemy_board = board
     my_board[move] = 1
     for direction in get_legal_directions(board, move):
         for i in range(1, 8):
-            next_coord = tuple(np.array(move) + i * np.array(direction))
+            next_coord = tuple(np.add(move, i * np.array(direction)))
             if enemy_board[next_coord] == 1:
                 enemy_board[next_coord] = 0
                 my_board[next_coord] = 1
@@ -88,17 +78,18 @@ def reverse_disks(board, move):
 
 def transcript2moves(transcript):
     """
-    文字列のトランスクリプトを指し手に変換する。
+    Convert string transcript to moves.
     """
     moves = []
     for i in range(0, len(transcript), 2):
-        moves.append((int(transcript[i + 1]) - 1, ord(transcript[i]) - ord("a")))
+        move = (int(transcript[i + 1]) - 1, ord(transcript[i]) - ord("a"))
+        moves.append(move)
     return moves
 
 
 def moves2matrices(moves):
     """
-    指し手を行列に変換する。
+    Convert moves to matrices.
     """
     matrices = []
     for move in moves:
@@ -110,48 +101,43 @@ def moves2matrices(moves):
 
 def moves2boards(moves):
     """
-    指し手を盤面に変換する。
+    Convert moves to board states.
     """
     boards = [init_board()]
     turn = 1
     for move in moves:
         if not is_legal_move(boards[-1][::turn], move):
             turn *= -1
-        board = np.copy(boards[-1][::turn])
-        board_reversed = reverse_disks(board, move)
-        boards.append(board_reversed[::turn])
+        new_board = np.copy(boards[-1][::turn])
+        boards.append(reverse_disks(new_board, move)[::turn])
         turn *= -1
     return boards
 
 
-def get_winner_index(moves, winner):
+def get_winner_indices(moves, winner):
     """
-    勝者の指し手のインデックスを返す。
+    Return the indices of the winner's moves.
     """
     boards = [init_board()]
-    winner_index = []
-    index = 0
+    winner_indices = []
     turn = 1
-    for move in moves:
+    for i, move in enumerate(moves):
         if not is_legal_move(boards[-1][::turn], move):
             turn *= -1
-        board = np.copy(boards[-1][::turn])
-        board_reversed = reverse_disks(board, move)
-        boards.append(board_reversed[::turn])
+        new_board = np.copy(boards[-1][::turn])
+        boards.append(reverse_disks(new_board, move)[::turn])
         if turn == winner:
-            winner_index.append(index)
-        index += 1
+            winner_indices.append(i)
         turn *= -1
-    return winner_index
+    return winner_indices
 
 
 def print_board(boards):
     """
-    盤面を表示する。
+    Display the board(s).
     """
     boards = [boards] if type(boards) != list else boards
-    for board in boards:
-        my_board, enemy_board = board
+    for my_board, enemy_board in boards:
         print("  a b c d e f g h")
         for i in range(8):
             print(i + 1, end=" ")

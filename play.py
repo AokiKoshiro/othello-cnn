@@ -5,142 +5,133 @@ from config import hyperparameters
 from train import Model
 from utils import get_legal_moves, init_board, print_board, reverse_disks
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+class Othello:
+    def __init__(self):
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = self.load_model(device)
+        self.board = init_board()
+        self.ai_board_history = []
+        self.human_color = self.ask_color()
+        self.turn = self.human_color
+        self.consecutive_paths = 0
 
-hidden_size = hyperparameters['hidden_size']
-num_block = hyperparameters['num_block']
-dropout = hyperparameters['dropout']
+    @staticmethod
+    def load_model(device):
+        hidden_size = hyperparameters['hidden_size']
+        num_block = hyperparameters['num_block']
+        dropout = hyperparameters['dropout']
+        model = Model(hidden_size, num_block, dropout)
+        model.load_state_dict(torch.load("./weights/model.pth", map_location=device))
+        model.eval()
+        return model
 
-model = Model(hidden_size, num_block, dropout)
-model.load_state_dict(torch.load("./weights/model.pth", map_location=device))
-model.eval()
+    @staticmethod
+    def ask_color():
+        color = input("Choose black(●) or white(○) (b/w): ")
+        return 1 if color == 'b' else -1 if color == 'w' else Othello.ask_color()
 
+    def random_move(self, legal_moves):
+        move = legal_moves[np.random.randint(len(legal_moves))]
+        print(f"Random move: {chr(ord('a') + move[1]) + str(move[0] + 1)}")
+        return reverse_disks(self.board, move)
+    
+    def human_move(self, legal_moves):
+        while True:
+            move_index = input("Your move: ")
 
-def ask_color():
-    # Ask if you are black or white.
-    color = input("Choose black(●) or white(○) (b/w): ")
-    if color == "b":
-        return 1
-    if color == "w":
-        return -1
-    print("Invalid color.")
-    return ask_color()
+            if move_index == "undo":
+                self.ai_board_history.pop()
+                self.board = self.ai_board_history[-1]
+                legal_moves = get_legal_moves(self.board)
+                print_board(self.board[::self.human_color])
+                continue
 
+            if move_index == "legal":
+                for move in legal_moves:
+                    print(f"{chr(ord('a') + move[1]) + str(move[0] + 1)}", end=" ")
+                print()
+                continue
 
-def random_move(board, legal_moves):
-    # Get the next move.
-    move = legal_moves[np.random.randint(len(legal_moves))]
-    print(f"Random move: {chr(ord('a') + move[1]) + str(move[0] + 1)}")
-    return reverse_disks(board, move)
+            if move_index == "exit":
+                exit()
 
+            if len(move_index) == 2:
+                if move_index[0].isalpha() and move_index[1].isdigit():
+                    move = (int(move_index[1]) - 1, ord(move_index[0]) - ord("a"))
+                    if move in legal_moves:
+                        return reverse_disks(self.board, move)
 
-def human_move(board, legal_moves, ai_board_history, human_color):
-    # If there is a legal move, ask the next move.
-    move_index = input("Your move: ")
-    if len(move_index) == 2:
-        if move_index[0].isalpha() and move_index[1].isdigit():
-            move = (int(move_index[1]) - 1, ord(move_index[0]) - ord("a"))
-            if move in legal_moves:
-                return reverse_disks(board, move), ai_board_history
-    if move_index == "undo":
-        ai_board_history.pop()
-        board = ai_board_history[-1]
-        legal_moves = get_legal_moves(board)
-        print_board(board[::human_color])
-        return human_move(board, legal_moves, ai_board_history, human_color)
-    if move_index == "legal":
-        for move in legal_moves:
-            print(f"{chr(ord('a') + move[1]) + str(move[0] + 1)}", end=" ")
-        print()
-        return human_move(board, legal_moves, ai_board_history, human_color)
-    if move_index == "exit":
-        exit()
-    print("Invalid move.")
-    return human_move(board, legal_moves, ai_board_history, human_color)
+            print("Invalid move.")
 
+    def ai_move(self, legal_moves):
+        with torch.no_grad():
+            np_board = np.array(self.board).astype(np.float32)
+            tensor_board = torch.from_numpy(np_board)
+            output = self.model(tensor_board.unsqueeze(0))
+            output = output.reshape(8, 8)
+            legal_output = np.array([output[move] for move in legal_moves])
+            move = legal_moves[np.argmax(legal_output)]
 
-def ai_move(board, legal_moves, ai_board_history):
-    # Get the next move.
-    with torch.no_grad():
-        np_board = np.array(board).astype(np.float32)
-        tensor_board = torch.from_numpy(np_board)
-        output = model(tensor_board.unsqueeze(0))
-        output = output.reshape(8, 8)
-        legal_output = np.array([output[move] for move in legal_moves])
-        move = legal_moves[np.argmax(legal_output)]
+        print(f"AI move: {chr(ord('a') + move[1]) + str(move[0] + 1)}")
+        self.board = reverse_disks(self.board, move)
+        self.ai_board_history.append(np.copy(self.board[::-1]))
+        return self.board, self.ai_board_history
 
-    print(f"AI move: {chr(ord('a') + move[1]) + str(move[0] + 1)}")
+    def switch_turn(self):
+        self.turn *= -1
+        self.board = self.board[::-1]
 
-    # Update the board.
-    board = reverse_disks(board, move)
-    ai_board_history.append(np.copy(board[::-1]))
-    return board, ai_board_history
+    def print_final_score(self, last_board):
+        black_score = np.sum(last_board[0])
+        white_score = np.sum(last_board[1])
+        print(f"Black score: {black_score}")
+        print(f"White score: {white_score}")
 
+        if black_score > white_score:
+            if self.human_color == 1:
+                print("You win.")
+            else:
+                print("You lose.")
+        elif black_score < white_score:
+            if self.human_color == 1:
+                print("You lose.")
+            else:
+                print("You win.")
+        else:
+            print("Draw.")
 
-def switch_turn(turn, board):
-    turn *= -1
-    board = board[::-1]
-    return turn, board
+    def start_game(self):
+        print_board(self.board)
+        if self.human_color == 1:
+            self.ai_board_history.append(np.copy(self.board))
 
+        while True:
+            if np.sum(self.board) == 64 or self.consecutive_paths == 2:
+                print("Game over.\n")
+                break
 
-# Initialize the board.
-board = init_board()  # board.shape = (2, 8, 8) , board = (my_board, enemy_board)
-ai_board_history = []
+            legal_moves = get_legal_moves(self.board)
 
-# Play the game.
-human_color = ask_color()
-turn = human_color
-consecutive_paths = 0
-print_board(board)
-if human_color == 1:
-    ai_board_history.append(np.copy(board))
+            if len(legal_moves) == 0:
+                print("Pass\n")
+                self.switch_turn()
+                self.consecutive_paths += 1
+                continue
+            self.consecutive_paths = 0
 
-while True:
-    # If the game is over, break.
-    if np.sum(board) == 64 or consecutive_paths == 2:
-        print("Game over.\n")
-        break
+            if self.turn == 1:
+                self.board = self.random_move(legal_moves)
+                # self.board = self.human_move(legal_moves)
+                # self.board, self.ai_board_history = self.ai_move(legal_moves)
+            else:
+                self.board, self.ai_board_history = self.ai_move(legal_moves)
 
-    # Get legal moves.
-    legal_moves = get_legal_moves(board)
+            last_board = self.board[:: self.human_color * self.turn]
+            print_board(last_board)
+            self.switch_turn()
 
-    # If there is no legal move, pass.
-    if len(legal_moves) == 0:
-        print("Pass\n")
-        turn, board = switch_turn(turn, board)
-        consecutive_paths += 1
-        continue
-    consecutive_paths = 0
+        self.print_final_score(last_board)
 
-    # If there is a legal move, ask the next move.
-    if turn == 1:
-        board = random_move(board, legal_moves)
-        # board, ai_board_history = human_move(board, legal_moves, ai_board_history, human_color)
-        # board, ai_board_history = ai_move(board, legal_moves, ai_board_history)
-    else:
-        board, ai_board_history = ai_move(board, legal_moves, ai_board_history)
-
-    last_board = board[:: human_color * turn]
-    print_board(last_board)
-
-    # Switch the turn.
-    turn, board = switch_turn(turn, board)
-
-# Print the final score.
-black_score = np.sum(last_board[0])
-white_score = np.sum(last_board[1])
-print(f"Black score: {black_score}")
-print(f"White score: {white_score}")
-
-if black_score > white_score:
-    if human_color == 1:
-        print("You win.")
-    else:
-        print("You lose.")
-elif black_score < white_score:
-    if human_color == 1:
-        print("You lose.")
-    else:
-        print("You win.")
-else:
-    print("Draw.")
+if __name__ == "__main__":
+    game = Othello()
+    game.start_game()

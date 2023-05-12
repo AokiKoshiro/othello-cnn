@@ -67,13 +67,10 @@ class SqueezeExcitationBlock(nn.Module):
 
     def forward(self, x):
         b, c, _, _ = x.size()
-        y = self._calculate_squeeze(x, b, c)
-        return x * y
-
-    def _calculate_squeeze(self, x, b, c):
         y = self.avg_pool(x).view(b, c)
         y = self.relu(self.linear1(y))
-        return self.sigmoid(self.linear2(y)).view(b, c, 1, 1)
+        y = self.sigmoid(self.linear2(y)).view(b, c, 1, 1)
+        return x * y
 
 
 class ConvolutionBlock(nn.Module):
@@ -183,8 +180,8 @@ def main():
     val_dataset = OthelloDataset(np_val_dataset, multiple=8, transform=BoardTransform())
 
     # dataloader
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
 
     # Set up device, model, criterion, optimizer, and scheduler
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -209,8 +206,8 @@ def main():
 
         if epoch % log_interval == 0:
             print(
-                f"Epoch: {epoch} | Train Loss: {train_loss:.6f} | Validation Loss: {val_loss:.6f} | "
-                f"Validation Accuracy: {100. * val_accuracy:.2f}%\n"
+                f"Epoch: {epoch}/{num_epochs} | Train Loss: {train_loss:.6f} | Validation Loss: {val_loss:.6f} | "
+                f"Validation Accuracy: {100. * val_accuracy:.2f}%"
             )
 
         # Save the trained model for each epoch
@@ -219,17 +216,19 @@ def main():
         else:
             torch.save(model.state_dict(), f"./weights/model_{epoch}.pth")
 
-    # Plot loss and accuracy curves
-    fig, ax = plt.subplots(1, 2, figsize=(15, 5))
-    ax[0].plot(train_loss_list, label="train_loss")
-    ax[0].plot(val_loss_list, label="val_loss")
-    ax[0].set_xlabel("Epoch")
-    ax[0].set_ylabel("Loss")
-    ax[0].legend()
-    ax[1].plot(val_accuracy_list)
-    ax[1].set_xlabel("Epoch")
-    ax[1].set_ylabel("Accuracy (%)")
-    plt.show()
+        # Plot loss and accuracy curves after each epoch
+        fig, ax = plt.subplots(1, 2, figsize=(15, 5))
+        ax[0].plot(range(1, num_epochs + 1), train_loss_list, label="train_loss")
+        ax[0].plot(range(1, num_epochs + 1), val_loss_list, label="val_loss")
+        ax[0].set_xlabel("Epoch")
+        ax[0].set_ylabel("Loss")
+        ax[0].set_xlim([1, num_epochs])
+        ax[0].legend()
+        ax[1].plot(range(1, num_epochs + 1), val_accuracy_list)
+        ax[1].set_xlabel("Epoch")
+        ax[1].set_ylabel("Accuracy (%)")
+        ax[1].set_xlim([1, num_epochs])
+        plt.show()
 
 
 if __name__ == "__main__":
