@@ -5,6 +5,7 @@ from config import hyperparameters
 from model import Model
 from utils import get_legal_moves, init_board, print_board, reverse_disks
 
+
 class Othello:
     def __init__(self):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -17,9 +18,9 @@ class Othello:
 
     @staticmethod
     def load_model(device):
-        hidden_size = hyperparameters['hidden_size']
-        num_block = hyperparameters['num_block']
-        dropout = hyperparameters['dropout']
+        hidden_size = hyperparameters["hidden_size"]
+        num_block = hyperparameters["num_block"]
+        dropout = hyperparameters["dropout"]
         model = Model(hidden_size, num_block, dropout)
         model.load_state_dict(torch.load("./weights/model.pth", map_location=device))
         model.eval()
@@ -28,13 +29,13 @@ class Othello:
     @staticmethod
     def ask_color():
         color = input("Choose black(●) or white(○) (b/w): ")
-        return 1 if color == 'b' else -1 if color == 'w' else Othello.ask_color()
+        return 1 if color == "b" else -1 if color == "w" else Othello.ask_color()
 
     def random_move(self, legal_moves):
         move = legal_moves[np.random.randint(len(legal_moves))]
         print(f"Random move: {chr(ord('a') + move[1]) + str(move[0] + 1)}")
         return reverse_disks(self.board, move)
-    
+
     def human_move(self, legal_moves):
         while True:
             move_index = input("Your move: ")
@@ -43,7 +44,7 @@ class Othello:
                 self.ai_board_history.pop()
                 self.board = self.ai_board_history[-1]
                 legal_moves = get_legal_moves(self.board)
-                print_board(self.board[::self.human_color])
+                print_board(self.board[:: self.human_color])
                 continue
 
             if move_index == "legal":
@@ -100,7 +101,7 @@ class Othello:
         else:
             print("Draw.")
 
-    def start_game(self):
+    def paly_game(self):
         print_board(self.board)
         if self.human_color == 1:
             self.ai_board_history.append(np.copy(self.board))
@@ -132,6 +133,7 @@ class Othello:
 
         self.print_final_score(last_board)
 
+
 if __name__ == "__main__":
     game = Othello()
-    game.start_game()
+    game.paly_game()

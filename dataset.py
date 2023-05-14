@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 
+
 class BoardTransform:
     def __init__(self):
         pass

@@ -5,7 +5,6 @@ from config import hyperparameters
 from model import Model
 from utils import get_legal_moves, init_board, reverse_disks
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Othello:
     def __init__(self):
@@ -15,9 +14,9 @@ class Othello:
 
     @staticmethod
     def load_model(device):
-        hidden_size = hyperparameters['hidden_size']
-        num_block = hyperparameters['num_block']
-        dropout = hyperparameters['dropout']
+        hidden_size = hyperparameters["hidden_size"]
+        num_block = hyperparameters["num_block"]
+        dropout = hyperparameters["dropout"]
         model = Model(hidden_size, num_block, dropout)
         model.load_state_dict(torch.load("./weights/model.pth", map_location=device))
         model.eval()
@@ -79,6 +78,7 @@ class Othello:
             turn, board = self.switch_turn(turn, board)
 
         return last_board
+
 
 def compute_results(ai_color, num_games, strength):
     game = Othello()
