@@ -35,18 +35,18 @@ class ConvolutionBlock(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self, hidden_size, num_block, dropout):
+    def __init__(self, hidden_size, num_conv_block, dropout):
         super(Model, self).__init__()
-        self.convs = self._create_convs(hidden_size, num_block)
+        self.convs = self._create_convs(hidden_size, num_conv_block)
         self.flatten = nn.Flatten()
         self.bn = nn.BatchNorm1d(hidden_size * 8 * 8)
         self.dropout = nn.Dropout(dropout)
         self.fc = nn.Linear(hidden_size * 8 * 8, 64)
         self.relu = nn.ReLU()
 
-    def _create_convs(self, hidden_size, num_block):
+    def _create_convs(self, hidden_size, num_conv_block):
         convs = nn.ModuleList()
-        for i in range(num_block):
+        for i in range(num_conv_block):
             in_channels = 2 if i == 0 else hidden_size
             convs.append(ConvolutionBlock(in_channels, hidden_size, 3, 1, 1))
         return convs

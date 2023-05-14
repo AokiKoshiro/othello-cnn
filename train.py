@@ -55,13 +55,13 @@ def main():
     # hyperparameters
     batch_size = hyperparameters["batch_size"]
     hidden_size = hyperparameters["hidden_size"]
-    num_block = hyperparameters["num_block"]
+    num_conv_block = hyperparameters["num_conv_block"]
     dropout = hyperparameters["dropout"]
     learning_rate = hyperparameters["learning_rate"]
     scheduler_step_size = hyperparameters["scheduler_step_size"]
     scheduler_gamma = hyperparameters["scheduler_gamma"]
     num_epochs = hyperparameters["num_epochs"]
-    log_interval = hyperparameters["log_interval"]
+    log_epoch_interval = hyperparameters["log_epoch_interval"]
     log_batch_interval = hyperparameters["log_batch_interval"]
 
     # dataset
@@ -77,7 +77,7 @@ def main():
 
     # Set up device, model, criterion, optimizer, and scheduler
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = Model(hidden_size, num_block, dropout).to(device)
+    model = Model(hidden_size, num_conv_block, dropout).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=scheduler_step_size, gamma=scheduler_gamma)
@@ -96,7 +96,7 @@ def main():
 
         scheduler.step()
 
-        if epoch % log_interval == 0:
+        if epoch % log_epoch_interval == 0:
             print(
                 f"Epoch: {epoch}/{num_epochs} | Train Loss: {train_loss:.6f} | Validation Loss: {val_loss:.6f} | "
                 f"Validation Accuracy: {100. * val_accuracy:.2f}%"

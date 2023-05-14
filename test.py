@@ -29,7 +29,7 @@ def main():
     # hyperparameters
     batch_size = hyperparameters["batch_size"]
     hidden_size = hyperparameters["hidden_size"]
-    num_block = hyperparameters["num_block"]
+    num_conv_block = hyperparameters["num_conv_block"]
     dropout = hyperparameters["dropout"]
 
     # dataset
@@ -41,7 +41,7 @@ def main():
 
     # Set up device, model, and criterion
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = Model(hidden_size, num_block, dropout).to(device)
+    model = Model(hidden_size, num_conv_block, dropout).to(device)
     model.load_state_dict(torch.load("./weights/model.pth", map_location=device))
     criterion = nn.CrossEntropyLoss()
 

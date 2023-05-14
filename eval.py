@@ -15,9 +15,9 @@ class Othello:
     @staticmethod
     def load_model(device):
         hidden_size = hyperparameters["hidden_size"]
-        num_block = hyperparameters["num_block"]
+        num_conv_block = hyperparameters["num_conv_block"]
         dropout = hyperparameters["dropout"]
-        model = Model(hidden_size, num_block, dropout)
+        model = Model(hidden_size, num_conv_block, dropout)
         model.load_state_dict(torch.load("./weights/model.pth", map_location=device))
         model.eval()
         return model
