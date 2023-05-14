@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 import numpy as np
-import matplotlib.pyplot as plt
 
 from config import hyperparameters
-from train import BoardTransform, OthelloDataset, Model
+from train import BoardTransform, OthelloDataset
+from model import Model
 
 
 def test(model, device, test_loader, criterion):

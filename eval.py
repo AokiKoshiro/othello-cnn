@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from config import hyperparameters
-from train import Model
+from model import Model
 from utils import get_legal_moves, init_board, reverse_disks
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from config import hyperparameters
-from train import Model
+from model import Model
 from utils import get_legal_moves, init_board, print_board, reverse_disks
 
 class Othello:
