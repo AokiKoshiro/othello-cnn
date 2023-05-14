@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 
 from config import hyperparameters
-from train import BoardTransform, OthelloDataset
+from dataset import BoardTransform, OthelloDataset
 from model import Model
 
 
