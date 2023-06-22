@@ -99,37 +99,23 @@ def moves2matrices(moves):
     return matrices
 
 
-def moves2boards(moves):
+def get_boards_winner_indices(moves, winner):
     """
-    Convert moves to board states.
+    Return the boards and the indices of the winner's moves.
     """
     boards = [init_board()]
+    turns = [1]
     turn = 1
     for move in moves:
-        if not is_legal_move(boards[-1][::turn], move):
+        if not is_legal_move(boards[-1], move):
             turn *= -1
-        new_board = np.copy(boards[-1][::turn])
-        boards.append(reverse_disks(new_board, move)[::turn])
+            continue
+        new_board = np.copy(boards[-1])
         turn *= -1
-    return boards
-
-
-def get_winner_indices(moves, winner):
-    """
-    Return the indices of the winner's moves.
-    """
-    boards = [init_board()]
-    winner_indices = []
-    turn = 1
-    for i, move in enumerate(moves):
-        if not is_legal_move(boards[-1][::turn], move):
-            turn *= -1
-        new_board = np.copy(boards[-1][::turn])
-        boards.append(reverse_disks(new_board, move)[::turn])
-        if turn == winner:
-            winner_indices.append(i)
-        turn *= -1
-    return winner_indices
+        boards.append(reverse_disks(new_board, move)[::-1])
+        turns.append(turn)
+    winner_indices = [i - 1 for i, t in enumerate(turns) if t == winner]
+    return boards, winner_indices
 
 
 def print_board(boards):
