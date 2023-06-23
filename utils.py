@@ -114,7 +114,7 @@ def get_boards_winner_indices(moves, winner):
         turn *= -1
         boards.append(reverse_disks(new_board, move)[::-1])
         turns.append(turn)
-    winner_indices = [i for i, turn in enumerate(turns) if turn == winner]
+    winner_indices = [i for i, turn in enumerate(turns[:-1]) if turn == winner]
     return boards, winner_indices
 
 
