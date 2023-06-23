@@ -10,7 +10,6 @@ class Othello:
     def __init__(self):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self.load_model(device)
-        self.board = init_board()
 
     @staticmethod
     def load_model(device):
@@ -30,6 +29,10 @@ class Othello:
             output = output.reshape(8, 8)
             legal_output = np.array([output[move] for move in legal_moves])
         return legal_output
+    
+    def random_move(self, board, legal_moves):
+        move = legal_moves[np.random.randint(len(legal_moves))]
+        return reverse_disks(board, move)
 
     def ai_move(self, board, legal_moves, strength):
         legal_output = self.get_legal_output(board, legal_moves)
@@ -41,8 +44,6 @@ class Othello:
         elif strength == "weak":
             limit = min(len(legal_moves) - 1, 3) if len(legal_moves) > 1 else 1
             move = legal_moves[np.random.choice(np.argsort(legal_output)[:limit])]
-        elif strength == "random":
-            move = legal_moves[np.random.randint(len(legal_moves))]
         else:
             raise ValueError("Invalid strength!")
         return reverse_disks(board, move)
@@ -59,7 +60,7 @@ class Othello:
 
         while True:
             if np.sum(board) == 64 or consecutive_paths == 2:
-                break
+                return board[:: ai_color * turn]
 
             legal_moves = get_legal_moves(board)
 
@@ -72,12 +73,9 @@ class Othello:
             if turn == 1:
                 board = self.ai_move(board, legal_moves, strength)
             else:
-                board = self.ai_move(board, legal_moves, "random")
+                board = self.random_move(board, legal_moves)
 
-            last_board = board[:: ai_color * turn]
             turn, board = self.switch_turn(turn, board)
-
-        return last_board
 
 
 def compute_results(ai_color, num_games, strength):
