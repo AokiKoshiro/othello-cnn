@@ -118,7 +118,7 @@ def main():
         ax[0].legend()
         ax[1].plot(range(1, epoch + 1), val_accuracy_list)
         ax[1].set_xlabel("Epoch")
-        ax[1].set_ylabel("Accuracy (%)")
+        ax[1].set_ylabel("Accuracy")
         ax[1].set_xlim([1, num_epochs])
         plt.show()
 
