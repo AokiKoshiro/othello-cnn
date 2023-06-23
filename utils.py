@@ -103,18 +103,21 @@ def get_boards_winner_indices(moves, winner):
     """
     Return the boards and the indices of the winner's moves.
     """
-    boards = [init_board()]
-    turns = [1]
     turn = 1
+    board = init_board()
+    turns = [turn]
+    boards = [board]
     for move in moves:
-        if not is_legal_move(boards[-1], move):
+        new_board = np.copy(board)
+        if is_legal_move(board, move):
             turn *= -1
-            continue
-        new_board = np.copy(boards[-1])
-        turn *= -1
-        boards.append(reverse_disks(new_board, move)[::-1])
+            board = reverse_disks(new_board, move)[::-1]
+        else:
+            board = reverse_disks(new_board[::-1], move)[::-1]
         turns.append(turn)
+        boards.append(board)
     winner_indices = [i for i, turn in enumerate(turns[:-1]) if turn == winner]
+    boards = boards[:-1]
     return boards, winner_indices
 
 
