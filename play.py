@@ -121,8 +121,8 @@ class Othello:
             self.consecutive_paths = 0
 
             if self.turn == 1:
-                self.board = self.random_move(legal_moves)
-                # self.board = self.human_move(legal_moves)
+                self.board = self.human_move(legal_moves)
+                # self.board = self.random_move(legal_moves)
                 # self.board, self.ai_board_history = self.ai_move(legal_moves)
             else:
                 self.board, self.ai_board_history = self.ai_move(legal_moves)
